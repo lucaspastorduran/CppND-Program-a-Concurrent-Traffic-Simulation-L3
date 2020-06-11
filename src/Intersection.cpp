@@ -15,19 +15,28 @@
 
 int WaitingVehicles::getSize()
 {
+    std::lock_guard<std::mutex> lck(vehiclesMtx);
     return _vehicles.size();
 }
 
 void WaitingVehicles::pushBack(std::shared_ptr<Vehicle> vehicle, std::promise<void> &&promise)
 {
+    std::unique_lock<std::mutex> vehiclesLock(vehiclesMtx);
     _vehicles.push_back(vehicle);
+    vehiclesLock.unlock();
+
+    std::lock_guard<std::mutex> promisesLock(promisesMtx);
     _promises.push_back(std::move(promise));
 }
 
 void WaitingVehicles::permitEntryToFirstInQueue()
 {
+    std::lock(vehiclesMtx, promisesMtx);
+
     // get entries from the front of both queues
+    std::lock_guard<std::mutex> promisesLock(promisesMtx, std::adopt_lock);
     auto firstPromise = _promises.begin();
+    std::lock_guard<std::mutex> vehiclesLock(vehiclesMtx, std::adopt_lock);
     auto firstVehicle = _vehicles.begin();
 
     // fulfill promise and send signal back that permission to enter has been granted
